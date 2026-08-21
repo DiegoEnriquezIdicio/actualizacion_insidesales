@@ -1,0 +1,11 @@
+# No versionar datos de entrada ni reportes de auditoria
+data/*.xlsx
+data/*.xls
+!data/plantilla_inside_sales.xlsx
+logs/*.xlsx
+__pycache__/
+~$*
+.env
+.env_evonet_prod
+.venv/
+venv/
