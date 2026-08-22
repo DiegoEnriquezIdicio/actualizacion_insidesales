@@ -3,7 +3,7 @@
 Actualiza masivamente el **Sales Rep (Inside Sales)** del Sales Team en transacciones de
 NetSuite a partir de un Excel, y genera un reporte de auditoria en Excel.
 
-Funciona para tres tipos de transaccion: **Sales Orders, Quotes y Opportunities**.
+Funciona para cuatro tipos de transaccion: **Sales Orders, Quotes, Opportunities e Invoices**.
 
 ---
 
@@ -83,7 +83,7 @@ encabezados en la **fila 1** y estas dos columnas:
 - `id_transaccion`: **internal id** de la transaccion en NetSuite (numerico). No es el
   numero de documento tipo `SO12345`.
 - `id_insidesales`: **internal id del empleado** que sera el nuevo Inside Sales.
-- Un archivo por tipo de transaccion, sin mezclar Sales Orders con Quotes.
+- Un archivo por tipo de transaccion, sin mezclar Sales Orders con Quotes o Invoices.
 - Las filas vacias o con valores no numericos no se envian: quedan marcadas como `OMITIDO`
   en el reporte.
 - **Cerrar el archivo en Excel** antes de ejecutar el script.
@@ -106,6 +106,7 @@ Cambiar `--tipo` segun la transaccion a actualizar:
 python actualizar_inside_sales.py --tipo salesorder --dry-run
 python actualizar_inside_sales.py --tipo quote --dry-run
 python actualizar_inside_sales.py --tipo opportunity --dry-run
+python actualizar_inside_sales.py --tipo invoice --dry-run
 ```
 
 ### 6. Ejecutar de verdad
@@ -152,6 +153,7 @@ El reporte queda en `logs/` (ver seccion siguiente).
 python actualizar_inside_sales.py --tipo salesorder
 python actualizar_inside_sales.py --tipo quote
 python actualizar_inside_sales.py --tipo opportunity
+python actualizar_inside_sales.py --tipo invoice
 
 # Simulacion, no envia nada a NetSuite
 python actualizar_inside_sales.py --tipo quote --dry-run
@@ -201,6 +203,7 @@ Excel nuevo con esas dos columnas y volver a ejecutar.
 | `salesorder`   | `/salesOrder/{id}?replace=salesTeam`  | employee + isPrimary + salesrole `-2` |
 | `quote`        | `/estimate/{id}?replace=salesTeam`    | employee + isPrimary + salesrole `-2` |
 | `opportunity`  | `/opportunity/{id}?replace=salesTeam` | employee + isPrimary + salesrole `-2` + `contribution: 100.0` |
+| `invoice`      | `/invoice/{id}?replace=salesTeam`     | employee + isPrimary + salesrole `-2` |
 
 Ejemplo de body enviado para `opportunity`:
 
@@ -212,8 +215,8 @@ Ejemplo de body enviado para `opportunity`:
 nuevo Inside Sales se agregaria a los miembros existentes en lugar de sustituirlos.
 
 La autenticacion es OAuth 1.0 TBA (HMAC-SHA256 + realm). El rol dueno de los tokens debe
-tener permiso de `REST Web Services` y de edicion sobre Sales Orders, Quotes y
-Opportunities. Los cambios quedan registrados en NetSuite a nombre de ese usuario de
+tener permiso de `REST Web Services` y de edicion sobre Sales Orders, Quotes,
+Opportunities e Invoices. Los cambios quedan registrados en NetSuite a nombre de ese usuario de
 integracion.
 
 ---

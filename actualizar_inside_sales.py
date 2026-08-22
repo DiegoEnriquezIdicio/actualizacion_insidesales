@@ -1,7 +1,7 @@
 """
 Actualiza el Sales Rep (Inside Sales) del Sales Team en transacciones de NetSuite.
 
-Soporta tres tipos de transaccion: salesorder, quote y opportunity.
+Soporta cuatro tipos de transaccion: salesorder, quote, opportunity e invoice.
 Lee un Excel de la carpeta data/ con las columnas id_transaccion e id_insidesales,
 hace un PATCH por cada fila al REST Record API de NetSuite y genera un reporte de
 auditoria en Excel dentro de la carpeta logs/.
@@ -10,6 +10,7 @@ Ejecucion manual:
     python actualizar_inside_sales.py
     python actualizar_inside_sales.py --tipo quote --archivo data/quotes.xlsx
     python actualizar_inside_sales.py --tipo salesorder --dry-run
+    python actualizar_inside_sales.py --tipo invoice --archivo data/invoices.xlsx
 """
 
 import argparse
@@ -29,7 +30,7 @@ from requests_oauthlib import OAuth1
 # CONFIGURACION - esto es lo unico que se cambia entre corridas
 # ---------------------------------------------------------------------------
 
-# Tipo de transaccion a procesar: "salesorder" | "quote" | "opportunity"
+# Tipo de transaccion a procesar: "salesorder" | "quote" | "opportunity" | "invoice"
 TIPO_TRANSACCION = "salesorder"
 
 # Excel de entrada. None = toma el archivo mas reciente de la carpeta data/
@@ -65,6 +66,7 @@ TRANSACCIONES = {
     "salesorder": {"recurso": "salesOrder", "contribution": False},
     "quote": {"recurso": "estimate", "contribution": False},
     "opportunity": {"recurso": "opportunity", "contribution": True},
+    "invoice": {"recurso": "invoice", "contribution": False},
 }
 
 # Nombres aceptados para las columnas del Excel (se normalizan a minusculas sin espacios)
