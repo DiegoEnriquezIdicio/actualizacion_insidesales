@@ -1,4 +1,18 @@
-# Cambios de Inside Sales en NetSuite
+# Actualizaciones masivas en NetSuite
+
+Scripts que actualizan masivamente transacciones de NetSuite a partir de un Excel y generan
+un reporte de auditoría. Son independientes entre sí, pero comparten las credenciales
+(`.env`), las dependencias y las carpetas `data/` y `logs/`:
+
+| Script | Qué actualiza | Transacciones |
+|--------|---------------|---------------|
+| `actualizar_inside_sales.py` | Sales Rep (Inside Sales) del Sales Team | Sales Orders, Quotes, Opportunities, Invoices |
+| `actualizar_entitystatus.py` | Status (campo `entitystatus`) | Quotes, Opportunities |
+
+Las secciones siguientes describen la instalación y el script de Inside Sales. El de Status
+está en [Status (entitystatus) de Quotes y Opportunities](#status-entitystatus-de-quotes-y-opportunities).
+
+## Cambios de Inside Sales
 
 Actualiza masivamente el **Sales Rep (Inside Sales)** del Sales Team en transacciones de
 NetSuite a partir de un Excel, y genera un reporte de auditoria en Excel.
@@ -229,3 +243,110 @@ integracion.
 - Reintentos automaticos ante errores 429 y 5xx, con pausa de 0.3 s entre peticiones.
 - Se puede volver a ejecutar con el mismo Excel sin efectos secundarios.
 - Codigo de salida: `0` si no hubo errores, `2` si hubo al menos uno.
+
+---
+
+## Status (entitystatus) de Quotes y Opportunities
+
+`actualizar_entitystatus.py` cambia el campo **Status** (`entitystatus`) de Quotes y
+Opportunities. No modifica ni importa nada del script de Inside Sales: usa el mismo `.env`
+y las mismas dependencias (pasos 1 a 3 de arriba).
+
+### 1. Preparar el Excel
+
+Llenar `data/plantilla_entitystatus.xlsx` (o una copia dentro de `data/`). En la **primera
+hoja**, con los encabezados en la **fila 1**, estas dos columnas en este orden:
+
+| id_transaccion | id_entitystatus |
+|----------------|-----------------|
+| 1234567        | 13              |
+| 1234568        | 14              |
+
+- `id_transaccion`: **internal id** de la Quote u Opportunity en NetSuite (numérico). No es
+  el número de documento.
+- `id_entitystatus`: **internal id** del nuevo Status. Los ids están en NetSuite en
+  *Setup > Sales > Customer Statuses* (con *Show Internal IDs* activo en las preferencias).
+- Un archivo por tipo: sin mezclar Quotes con Opportunities.
+- Las columnas se reconocen **por nombre**, no por posición. Si el Excel trae otros
+  encabezados (por ejemplo, los de Inside Sales), el script se detiene sin enviar nada.
+- Las filas con ids vacíos o no numéricos no se envían y quedan como `OMITIDO` en el reporte.
+- **Cerrar el archivo en Excel** antes de ejecutar el script.
+
+### 2. Comandos por entidad
+
+`--tipo` es obligatorio. Primero con `--dry-run` (valida el Excel y muestra lo que
+enviaría, **sin tocar NetSuite**), y después la misma línea sin `--dry-run`:
+
+```bash
+# Opportunities
+python actualizar_entitystatus.py --tipo opportunity --dry-run
+python actualizar_entitystatus.py --tipo opportunity
+
+# Quotes
+python actualizar_entitystatus.py --tipo quote --dry-run
+python actualizar_entitystatus.py --tipo quote
+```
+
+Sin `--archivo` toma el Excel **más reciente** de `data/`, igual que el script de Inside
+Sales. Como los dos procesos comparten la carpeta, conviene indicar el archivo:
+
+```bash
+python actualizar_entitystatus.py --tipo quote --archivo data/plantilla_entitystatus.xlsx
+```
+
+Cada script rechaza el Excel del otro porque sus columnas son distintas. Si se ejecuta sin
+`--archivo` y el más reciente de `data/` es del otro proceso, el script se detiene con un
+error de columnas y no envía nada: basta con indicar el archivo correcto.
+
+`--env` y `--help` funcionan igual que en el script de Inside Sales.
+
+### 3. Qué hace por cada fila
+
+| `--tipo` | Petición |
+|----------|----------|
+| `opportunity` | `PATCH {ENDPOINT_NETSUITE}record/v1/opportunity/{id_transaccion}` |
+| `quote`       | `PATCH {ENDPOINT_NETSUITE}record/v1/estimate/{id_transaccion}` |
+
+En el REST Record API de NetSuite la Quote se llama `estimate`. Body enviado:
+
+```json
+{"entitystatus": {"id": "13"}}
+```
+
+Cada petición lleva el header `X-NetSuite-PropertyNameValidation: error`. Por defecto
+NetSuite ignora un nombre de campo que no reconoce y responde 204 igual. Con el header lo
+rechaza, así un `EXITO` (HTTP 204) garantiza que el campo se aplicó.
+
+Autenticación, reintentos (429, 5xx y errores de red) y pausa entre peticiones son iguales
+a los del script de Inside Sales.
+
+### 4. Reporte
+
+Un archivo por corrida en `logs/reporte_entitystatus_{tipo}_{YYYYMMDD_HHMMSS}.xlsx`, con las
+mismas hojas que el de Inside Sales:
+
+- **detalle**: `fila_excel`, `id_transaccion`, `id_entitystatus`, `estatus` (`EXITO`,
+  `ERROR` u `OMITIDO`), `codigo_http`, `error`, `url` y `fecha_hora`.
+- **resumen**: proceso, tipo de transacción, archivo de entrada, fecha, modo y totales.
+
+Código de salida: `0` si no hubo errores, `2` si hubo al menos uno, `1` si no pudo arrancar
+(falta `--tipo`, el `.env`, el Excel o sus columnas, o el Excel no tiene filas).
+
+### Notas
+
+- NetSuite valida cada Status: un id inexistente o no permitido para ese tipo de
+  transacción vuelve como `ERROR`, con el detalle en el reporte.
+- Según la ayuda de NetSuite, el Status de una Opportunity se sincroniza con el de sus
+  Quotes o Sales Orders asociadas, y pasa a *Closed Won* si tiene otra transacción
+  asociada. Después de la carga, revisar una muestra en la interfaz (Status y Probability).
+- El script no guarda el Status anterior. Si se necesita poder revertir, exportar antes los
+  valores actuales (por ejemplo, con una búsqueda guardada).
+- Antes de una carga masiva, probar con un Excel de 1 o 2 filas.
+
+### Pruebas automáticas
+
+Prueban el script sin conectarse a NetSuite (las peticiones las responde un servidor falso):
+
+```bash
+python -m unittest discover -s tests -v
+```
