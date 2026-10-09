@@ -2,6 +2,7 @@
 data/*.xlsx
 data/*.xls
 !data/plantilla_inside_sales.xlsx
+!data/plantilla_entitystatus.xlsx
 logs/*.xlsx
 __pycache__/
 ~$*
